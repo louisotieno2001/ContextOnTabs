@@ -1,0 +1,59 @@
+{
+  "name": "context-on-tabs",
+  "displayName": "Context On Tabs",
+  "version": "0.1.0",
+  "description": "A Chrome extension for creating floating AI context panels from highlighted browser content.",
+  "private": true,
+  "engines": {
+    "node": ">=20 <25",
+    "npm": ">=9"
+  },
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^1.14.0",
+    "plasmo": "0.90.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.42",
+    "@types/node": "^20.19.39",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "@parcel/core": "2.9.3",
+    "@parcel/fs": "2.9.3",
+    "@parcel/package-manager": "2.9.3",
+    "@parcel/cache": "2.9.3",
+    "@parcel/workers": "2.9.3",
+    "@parcel/utils": "2.9.3",
+    "@parcel/types": "2.9.3",
+    "@parcel/plugin": "2.9.3",
+    "@parcel/reporter-dev-server": "2.9.3"
+  },
+  "manifest": {
+    "permissions": [
+      "storage",
+      "activeTab"
+    ],
+    "host_permissions": [
+      "https://api.openai.com/*",
+      "https://api.anthropic.com/*",
+      "https://generativelanguage.googleapis.com/*"
+    ],
+    "action": {
+      "default_title": "Context On Tabs",
+      "default_popup": "./popup.html"
+    }
+  }
+}
