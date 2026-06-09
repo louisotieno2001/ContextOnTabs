@@ -1,4 +1,4 @@
-export type CotsNodeKind = "selection" | "ai-panel"
+export type CotsNodeKind = "selection" | "ai-panel" | "group-summary"
 
 export type SelectionRect = {
   x: number
@@ -19,20 +19,26 @@ export type SelectionAnchor = {
   createdAt: string
 }
 
+export type CotsNodePanel = {
+  sourceId: string
+  x: number
+  y: number
+  width: number
+  height: number
+  minimized: boolean
+  maximized: boolean
+  groupId?: string
+}
+
 export type CotsNode = {
   id: string
   kind: CotsNodeKind
   label: string
   anchor?: SelectionAnchor
-  panel?: {
-    sourceId: string
-    x: number
-    y: number
-    width: number
-    height: number
-    minimized: boolean
-    maximized: boolean
-  }
+  panel?: CotsNodePanel
+  groupId?: string
+  tabId?: number
+  tabUrl?: string
 }
 
 export type CotsEdge = {
@@ -46,6 +52,50 @@ export type CotsGraph = {
   nodes: CotsNode[]
   edges: CotsEdge[]
   updatedAt: string
+}
+
+// --- Groups ---
+
+export type CotsGroup = {
+  id: string
+  label: string
+  nodeIds: string[]
+  summary?: string
+  createdAt: string
+  updatedAt: string
+}
+
+// --- Cross-tab messages ---
+
+export type CotsActionType =
+  | "PANELS_UPDATED"
+  | "PANEL_DELETED"
+  | "GROUPS_UPDATED"
+  | "GROUP_DELETED"
+  | "SUMMARIZE_GROUP"
+  | "SYNC_REQUEST"
+  | "FULL_STATE_REQUEST"
+
+export type CotsAction = {
+  type: CotsActionType
+  payload?: unknown
+  sourceTabId?: number
+}
+
+export type CotsBroadcastType =
+  | "FULL_STATE_SYNC"
+  | "GRAPH_UPDATED"
+  | "GROUPS_UPDATED"
+  | "GROUP_SUMMARY"
+
+export type CotsBroadcast = {
+  type: CotsBroadcastType
+  payload?: unknown
+}
+
+export type FullState = {
+  graph: CotsGraph
+  groups: CotsGroup[]
 }
 
 export type AiProvider = "openai" | "anthropic" | "google" | "custom"

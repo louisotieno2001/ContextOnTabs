@@ -1,27 +1,21 @@
 {
-  "$schema": "https://json.schemastore.org/tsconfig.json",
-  "extends": "plasmo/templates/tsconfig.base",
-  "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "~*": [
-        "./*",
-        "./src/*",
-        "./src/pages/*"
-      ]
-    },
-    "strict": true,
-    "types": [
-      "chrome",
-      "node"
-    ]
-  },
-  "include": [
-    ".plasmo/index.d.ts",
-    "src/**/*.ts",
-    "src/**/*.tsx"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+    "extends": "plasmo/templates/tsconfig.base",
+    "exclude": [
+        "node_modules"
+    ],
+    "include": [
+        ".plasmo/index.d.ts",
+        "./**/*.ts",
+        "./**/*.tsx"
+    ],
+    
+    "compilerOptions": {
+        "ignoreDeprecations": "6.0",
+        "paths": {
+            "~*": [
+                "./*"
+            ]
+        },
+        "baseUrl": "."
+    }
 }
