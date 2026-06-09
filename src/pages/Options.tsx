@@ -1,6 +1,7 @@
 // @ts-ignore: side-effect CSS import may not have type declarations
 import "../styles/globals.css"
 
+import React from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { Brain, Palette, Info, Save, Zap, Check, Sparkles, Moon, Sun } from "lucide-react"
 

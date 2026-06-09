@@ -10,8 +10,11 @@
   },
   "scripts": {
     "dev": "plasmo dev",
+    "dev:firefox": "plasmo dev --target=firefox-mv2",
     "build": "plasmo build",
+    "build:firefox": "plasmo build --target=firefox-mv2",
     "package": "plasmo package",
+    "package:firefox": "plasmo package --target=firefox-mv2",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -22,6 +25,7 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.1.42",
+    "@types/firefox-webext-browser": "^143.0.0",
     "@types/node": "^20.19.39",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
@@ -54,6 +58,12 @@
     "action": {
       "default_title": "Context On Tabs",
       "default_popup": "./popup.html"
+    },
+    "browser_specific_settings": {
+      "gecko": {
+        "id": "$FIREFOX_EXT_ID",
+        "strict_min_version": "115.0"
+      }
     }
   }
 }
