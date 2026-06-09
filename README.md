@@ -19,7 +19,7 @@ Context On Tabs is a cross-browser extension for creating floating AI context pa
 ## Setup
 
 ```bash
-npm install
+pnpm install
 ```
 
 Copy `.env.example` to `.env` and configure:
@@ -32,8 +32,8 @@ Copy `.env.example` to `.env` and configure:
 ## Development
 
 ```bash
-npm run dev          # Chrome MV3 (hot reload)
-npm run dev:firefox  # Firefox MV2 (hot reload)
+pnpm run dev          # Chrome MV3 (hot reload)
+pnpm run dev:firefox  # Firefox MV2 (hot reload)
 ```
 
 Load the generated extension from:
@@ -49,22 +49,22 @@ If you hit dependency issues, refresh the install:
 
 ```bash
 rm -rf node_modules package-lock.json .plasmo/cache
-npm install
+pnpm install
 ```
 
 If Node is installed through `fnm` but `npm` is not on the current shell path, use the installed Node bin path directly:
 
 ```bash
-PATH=path/to/node_binary:$PATH npm run dev
+PATH=path/to/node_binary:$PATH pnpm run dev
 ```
 
 ## Build
 
 ```bash
-npm run build            # Chrome MV3
-npm run build:firefox    # Firefox MV2
-npm run package          # Chrome MV3 (zip for store)
-npm run package:firefox  # Firefox MV2 (zip for store)
+pnpm run build            # Chrome MV3
+pnpm run build:firefox    # Firefox MV2
+pnpm run package          # Chrome MV3 (zip for store)
+pnpm run package:firefox  # Firefox MV2 (zip for store)
 ```
 
 Output goes to `build/` under target-specific directories.
