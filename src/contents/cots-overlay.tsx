@@ -1,4 +1,5 @@
 import type { PlasmoCSConfig } from "plasmo"
+import iconUrl from "url:~/assets/icon.png"
 import React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowRight, Maximize2, Minimize2, Plus, X, FolderKanban, Layers, FileText } from "lucide-react"
@@ -15,6 +16,65 @@ import type {
 } from "../lib/types"
 import { DEFAULT_SETTINGS } from "../lib/types"
 
+const HIGHLIGHT_COLORS = [
+  { name: "Yellow", value: "#fef08a" },
+  { name: "Green", value: "#bbf7d0" },
+  { name: "Blue", value: "#bfdbfe" },
+  { name: "Pink", value: "#fbcfe8" },
+  { name: "Orange", value: "#fed7aa" }
+]
+
+function highlightSelection(color: string, onShowTooltip: (draft: DraftSelection) => void) {
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return
+
+  const range = selection.getRangeAt(0)
+  const text = selection.toString().trim()
+  if (!text) return
+
+  const span = document.createElement("span")
+  span.style.backgroundColor = color
+  span.style.color = "black"
+  span.style.cursor = "pointer"
+  span.className = "cots-highlight"
+  span.dataset.text = text
+
+  // Add click handler to show options for existing highlight
+  span.onclick = (e) => {
+    e.stopPropagation()
+    const rect = span.getBoundingClientRect()
+    onShowTooltip({
+      text: span.dataset.text || span.innerText,
+      pageTitle: document.title,
+      pageUrl: window.location.href,
+      rect: {
+        x: rect.x + window.scrollX,
+        y: rect.y + window.scrollY,
+        width: rect.width,
+        height: rect.height,
+        top: rect.top + window.scrollY,
+        right: rect.right + window.scrollX,
+        bottom: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX
+      },
+      createdAt: new Date().toISOString(),
+      buttonX: clamp(rect.right + window.scrollX + 10, 12, window.scrollX + window.innerWidth - 76),
+      buttonY: clamp(rect.top + window.scrollY - 4, window.scrollY + 12, window.scrollY + window.innerHeight - 44),
+      isExistingHighlight: true,
+      highlightElement: span
+    } as any)
+  }
+
+  try {
+    const fragment = range.extractContents()
+    span.appendChild(fragment)
+    range.insertNode(span)
+  } catch (e) {
+    console.error("Highlight failed:", e)
+  }
+  selection.removeAllRanges()
+}
+
 export const config: PlasmoCSConfig = {
   matches: ["<all_urls>"],
   run_at: "document_idle"
@@ -29,6 +89,17 @@ export const getStyle = () => {
 type DraftSelection = SelectionAnchor & {
   buttonX: number
   buttonY: number
+  isExistingHighlight?: boolean
+  highlightElement?: HTMLSpanElement
+}
+
+function removeHighlight(element: HTMLSpanElement) {
+  const parent = element.parentNode
+  if (!parent) return
+  while (element.firstChild) {
+    parent.insertBefore(element.firstChild, element)
+  }
+  parent.removeChild(element)
 }
 
 type PanelState = {
@@ -829,20 +900,66 @@ function CotsOverlay() {
         )
       })}
 
-      {/* COT-tab button */}
+      {/* COT-tab tooltip */}
       {draft && (
-        <button
-          className="pointer-events-auto absolute flex items-center gap-1.5 rounded-lg border border-accent/50 bg-paper px-4 py-2.5 text-xs font-semibold text-accent transition-all duration-200 hover:bg-accent/10 active:scale-95 animate-fade-in"
+        <div
+          className="pointer-events-auto absolute flex flex-col gap-2 animate-fade-in"
           style={{
             left: draft.buttonX - window.scrollX,
             top: draft.buttonY - window.scrollY
-          }}
-          type="button"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={createPanel}>
-          <Plus className="h-3.5 w-3.5" />
-          COT-tab
-        </button>
+          }}>
+          <div className="flex flex-col gap-1 rounded-lg border border-accent/50 bg-paper p-1 shadow-panel">
+            <div className="flex items-center gap-1">
+              <button
+                className="flex items-center gap-1.5 rounded-md bg-paper px-3 py-1.5 text-xs font-semibold text-accent transition-all duration-200 hover:bg-accent/10 active:scale-95"
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={createPanel}>
+                <img src={iconUrl} className="h-4 w-4" alt="" />
+                Open in COT-tab
+              </button>
+              {draft.isExistingHighlight && draft.highlightElement && (
+                <>
+                  <div className="h-4 w-[1px] bg-line/20 mx-1" />
+                  <button
+                    className="flex items-center gap-1.5 rounded-md bg-signal/10 px-3 py-1.5 text-xs font-semibold text-signal transition-all duration-200 hover:bg-signal/20 active:scale-95"
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => {
+                      if (draft.highlightElement) {
+                        removeHighlight(draft.highlightElement)
+                      }
+                      setDraft(null)
+                    }}>
+                    <X className="h-3.5 w-3.5" />
+                    Remove
+                  </button>
+                </>
+              )}
+            </div>
+            
+            {!draft.isExistingHighlight && (
+              <>
+                <div className="h-[1px] w-full bg-line/10 my-0.5" />
+                <div className="flex gap-1 px-1 pb-1">
+                  {HIGHLIGHT_COLORS.map((c) => (
+                    <button
+                      key={c.name}
+                      className="h-5 w-5 rounded-full border border-line/20 transition-transform hover:scale-110 active:scale-90"
+                      style={{ backgroundColor: c.value }}
+                      title={`Highlight ${c.name}`}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        highlightSelection(c.value, setDraft)
+                        setDraft(null)
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Panels */}
