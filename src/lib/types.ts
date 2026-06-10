@@ -1,4 +1,4 @@
-export type CotsNodeKind = "selection" | "ai-panel" | "group-summary"
+export type CotsNodeKind = "selection" | "ai-panel" | "group-summary" | "highlight"
 
 export type SelectionRect = {
   x: number
@@ -37,6 +37,7 @@ export type CotsNode = {
   anchor?: SelectionAnchor
   panel?: CotsNodePanel
   groupId?: string
+  highlightColor?: string // Added for persistence
   tabId?: number
   tabUrl?: string
 }

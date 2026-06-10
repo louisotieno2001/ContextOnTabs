@@ -3,7 +3,6 @@ import iconUrl from "url:~/assets/icon.png"
 import React from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ArrowRight, Maximize2, Minimize2, Plus, X, FolderKanban, Layers, FileText } from "lucide-react"
-
 import cssText from "data-text:~styles/globals.css"
 
 import { browser } from "../lib/browser"
@@ -17,11 +16,13 @@ import type {
 import { DEFAULT_SETTINGS } from "../lib/types"
 
 const HIGHLIGHT_COLORS = [
-  { name: "Yellow", value: "#fef08a" },
-  { name: "Green", value: "#bbf7d0" },
-  { name: "Blue", value: "#bfdbfe" },
-  { name: "Pink", value: "#fbcfe8" },
-  { name: "Orange", value: "#fed7aa" }
+  { name: "Yellow", value: "#f8e008" },
+  { name: "Green", value: "#06752d" },
+  { name: "Blue", value: "#05149e" },
+  { name: "Pink", value: "#e40985" },
+  { name: "Orange", value: "#e47c06" },
+  { name: "Purple", value: "#27034e" },
+  {name: "Red", value: "#da0909" }
 ]
 
 function highlightSelection(color: string, onShowTooltip: (draft: DraftSelection) => void) {
@@ -102,6 +103,63 @@ function removeHighlight(element: HTMLSpanElement) {
   parent.removeChild(element)
 }
 
+function applyHighlights(highlights: CotsNode[]) {
+  highlights.forEach(h => {
+    if (!h.anchor || !h.highlightColor) return;
+    
+    // Simple text search to find the highlight and apply it
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    let node;
+    while(node = walker.nextNode()) {
+      const index = node.textContent?.indexOf(h.anchor.text);
+      if (index !== -1 && index !== undefined) {
+        const range = document.createRange();
+        range.setStart(node, index);
+        range.setEnd(node, index + h.anchor.text.length);
+        
+        const span = document.createElement("span");
+        span.style.backgroundColor = h.highlightColor;
+        span.style.color = "black";
+        span.style.cursor = "pointer";
+        span.className = "cots-highlight";
+        span.dataset.text = h.anchor.text;
+        
+        span.onclick = (e) => {
+          e.stopPropagation();
+          const rect = span.getBoundingClientRect();
+          setDraft({
+            text: h.anchor!.text,
+            pageTitle: document.title,
+            pageUrl: window.location.href,
+            rect: {
+              x: rect.x + window.scrollX,
+              y: rect.y + window.scrollY,
+              width: rect.width,
+              height: rect.height,
+              top: rect.top + window.scrollY,
+              right: rect.right + window.scrollX,
+              bottom: rect.bottom + window.scrollY,
+              left: rect.left + window.scrollX
+            },
+            createdAt: new Date().toISOString(),
+            buttonX: clamp(rect.right + window.scrollX + 10, 12, window.scrollX + window.innerWidth - 76),
+            buttonY: clamp(rect.top + window.scrollY - 4, window.scrollY + 12, window.scrollY + window.innerHeight - 44),
+            isExistingHighlight: true,
+            highlightElement: span
+          });
+        }
+        
+        try {
+          range.surroundContents(span);
+        } catch (e) {
+          console.warn("Could not apply highlight span", e);
+        }
+        break; // Only highlight first occurrence for now
+      }
+    }
+  });
+}
+
 type PanelState = {
   id: string
   sourceId: string
@@ -121,10 +179,20 @@ type PanelState = {
   kind: CotsNodeKind
 }
 
-function sendAction(action: CotsAction) {
-  browser.runtime.sendMessage({
-    type: "COTS_ACTION",
-    payload: action
+function persistHighlight(anchor: SelectionAnchor, color: string) {
+  const highlightNode: CotsNode = {
+    id: createId("highlight"),
+    kind: "highlight",
+    label: anchor.text.slice(0, 80),
+    anchor: anchor,
+    highlightColor: color,
+    tabId: undefined,
+    tabUrl: window.location.href
+  }
+  
+  sendAction({
+    type: "PANELS_UPDATED",
+    payload: { nodes: [highlightNode], edges: [] }
   })
 }
 
@@ -194,6 +262,13 @@ function FollowUpInput({
           )
         )
         setLoading(false)
+      }).catch((err) => {
+        setLoading(false)
+        if (err.message.includes("Extension context invalidated")) {
+          console.warn("COTs: Extension context invalidated, could not send AI request.")
+        } else {
+          console.error("COTs: Error sending AI request", err)
+        }
       })
     },
     [question, loading, panel, updatePanels]
@@ -482,16 +557,36 @@ function CotsOverlay() {
           const { graph, groups: loadedGroups } = reply.payload as FullState
           setGroups(loadedGroups)
 
+          const currentUrl = window.location.href
           const restored = graph.nodes
-            .filter((node) => node.kind === "ai-panel" || node.kind === "group-summary")
+            .filter((node) => (node.kind === "ai-panel" || node.kind === "group-summary") && node.tabUrl === currentUrl)
             .map((node) => panelFromNode(node, s))
             .filter(Boolean) as PanelState[]
 
           setPanels(restored)
+          
+          const highlights = graph.nodes.filter(node => node.kind === "highlight" && node.tabUrl === currentUrl);
+          applyHighlights(highlights);
+        }
+      }).catch((err) => {
+        if (err.message.includes("Extension context invalidated")) {
+          console.warn("COTs: Extension context invalidated, could not load state.")
+        } else {
+          console.error("COTs: Error loading state", err)
         }
       })
     })
   }, [])
+
+  // Expose setter so highlight helper functions outside React can open the tooltip
+  useEffect(() => {
+    ;(window as any).__cots_setDraft = setDraft
+    return () => {
+      try {
+        delete (window as any).__cots_setDraft
+      } catch {}
+    }
+  }, [setDraft])
 
   // Listen for broadcasts from background
   useEffect(() => {
@@ -499,8 +594,9 @@ function CotsOverlay() {
       if (message.type === "GRAPH_UPDATED") {
         const graph = message.payload as CotsGraph
         loadSettings().then((s) => {
+          const currentUrl = window.location.href
           const restored = graph.nodes
-            .filter((node) => node.kind === "ai-panel" || node.kind === "group-summary")
+            .filter((node) => (node.kind === "ai-panel" || node.kind === "group-summary") && node.tabUrl === currentUrl)
             .map((node) => panelFromNode(node, s))
             .filter(Boolean) as PanelState[]
           setPanels((prev) => {
@@ -767,6 +863,12 @@ function CotsOverlay() {
             : item
         )
       )
+    }).catch((err) => {
+      if (err.message.includes("Extension context invalidated")) {
+        console.warn("COTs: Extension context invalidated, could not send AI request.")
+      } else {
+        console.error("COTs: Error sending AI request", err)
+      }
     })
   }, [draft, updatePanels])
 
@@ -951,8 +1053,10 @@ function CotsOverlay() {
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => {
                         highlightSelection(c.value, setDraft)
+                        persistHighlight(draft, c.value) // Persist the highlight
                         setDraft(null)
                       }}
+
                     />
                   ))}
                 </div>
@@ -1179,3 +1283,21 @@ function hashCode(str: string): number {
 }
 
 export default CotsOverlay
+
+// sendAction is provided by the background script via runtime messaging.
+// If needed locally, forward to background. Use unknown payload to match CotsAction.
+function sendAction(action: { type: string; payload?: unknown; sourceTabId?: number }) {
+  try {
+    browser.runtime.sendMessage({ type: "COTS_ACTION", payload: action })
+  } catch (e) {
+    console.warn("sendAction failed", e)
+  }
+}
+
+function setDraft(value: DraftSelection | null) {
+  // This function is defined in CotsOverlay and exposed to window for use in highlight utils.
+  // It's used to update the draft selection state from outside React, e.g. when a highlight is clicked.
+  // In a more complex app, you might want a more robust state management solution.
+  (window as any).__cots_setDraft(value)
+}
+

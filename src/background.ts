@@ -14,7 +14,13 @@ browser.runtime.onInstalled.addListener(() => {
   })
 })
 
-function broadcastToTabs(message: CotsBroadcast) {
+function broadcastToTabs(message: CotsBroadcast, targetTabId?: number) {
+  if (targetTabId) {
+    browser.tabs.sendMessage(targetTabId, message).catch(() => {
+      activeTabs.delete(targetTabId)
+    })
+    return
+  }
   for (const tabId of activeTabs) {
     browser.tabs.sendMessage(tabId, message).catch(() => {
       activeTabs.delete(tabId)
@@ -63,20 +69,32 @@ async function summarizeGroup(groupId: string, group: CotsGroup, graph: CotsGrap
   }
 }
 
-async function handleAction(action: CotsAction) {
+async function handleAction(action: CotsAction, tabId?: number) {
   switch (action.type) {
     case "FULL_STATE_REQUEST": {
       const graph = await loadGraph()
       const groups = await loadGroups()
+      
       return { graph, groups }
     }
 
     case "PANELS_UPDATED": {
       const incoming = action.payload as { nodes: CotsGraph["nodes"]; edges: CotsGraph["edges"] }
       const version = new Date().toISOString()
-      const graph: CotsGraph = { ...incoming, updatedAt: version }
-      await saveGraph(graph)
-      broadcastToTabs({ type: "GRAPH_UPDATED", payload: graph })
+      const currentGraph = await loadGraph()
+
+      // Merge incoming nodes with existing, but keep our tabId association
+      const nodesToKeep = currentGraph.nodes.filter(n => n.tabId !== tabId && n.kind !== "selection" && n.kind !== "highlight")
+      const updatedGraph: CotsGraph = { 
+        nodes: [...nodesToKeep, ...incoming.nodes.map(n => ({...n, tabId}))], 
+        edges: [...currentGraph.edges.filter(e => !incoming.edges.find(ie => ie.id === e.id)), ...incoming.edges],
+        updatedAt: version 
+      }
+      await saveGraph(updatedGraph)
+      
+      // Broadcast to specific tab or all? Broadcasts seem to need to be per-tab to avoid leaking.
+      // For now, let's just update the broadcast logic to filter by tabId.
+      broadcastToTabs({ type: "GRAPH_UPDATED", payload: updatedGraph }, tabId)
       return
     }
 
@@ -89,7 +107,25 @@ async function handleAction(action: CotsAction) {
         updatedAt: new Date().toISOString()
       }
       await saveGraph(graph)
-      broadcastToTabs({ type: "GRAPH_UPDATED", payload: graph })
+
+      // Also remove from groups
+      let groups = await loadGroups()
+      let groupsChanged = false
+      groups = groups.map(g => {
+        if (g.nodeIds.includes(panelId)) {
+          groupsChanged = true
+          return { ...g, nodeIds: g.nodeIds.filter(id => id !== panelId) }
+        }
+        return g
+      })
+      if (groupsChanged) {
+        await saveGroups(groups)
+      }
+
+      broadcastToTabs({ type: "GRAPH_UPDATED", payload: graph }, tabId)
+      if (groupsChanged) {
+        broadcastToTabs({ type: "GROUPS_UPDATED", payload: groups }, tabId)
+      }
       return
     }
 
@@ -97,8 +133,7 @@ async function handleAction(action: CotsAction) {
       const groups = action.payload as CotsGroup[]
       await saveGroups(groups)
 
-      const graph = await loadGraph()
-      broadcastToTabs({ type: "GROUPS_UPDATED", payload: groups })
+      broadcastToTabs({ type: "GROUPS_UPDATED", payload: groups }, tabId)
       return
     }
 
@@ -113,7 +148,7 @@ async function handleAction(action: CotsAction) {
         n.groupId === groupId ? { ...n, groupId: undefined, panel: n.panel ? { ...n.panel, groupId: undefined } : undefined } : n
       )
       await saveGraph(graph)
-      broadcastToTabs({ type: "FULL_STATE_SYNC", payload: { graph, groups } })
+      broadcastToTabs({ type: "FULL_STATE_SYNC", payload: { graph, groups } }, tabId)
       return
     }
 
@@ -130,7 +165,7 @@ async function handleAction(action: CotsAction) {
     case "SYNC_REQUEST": {
       const graph = await loadGraph()
       const groups = await loadGroups()
-      broadcastToTabs({ type: "FULL_STATE_SYNC", payload: { graph, groups } })
+      broadcastToTabs({ type: "FULL_STATE_SYNC", payload: { graph, groups } }, tabId)
       return
     }
   }
@@ -153,7 +188,7 @@ browser.runtime.onMessage.addListener(async (message: any, sender) => {
 
   if (message?.type === "COTS_ACTION") {
     try {
-      const result = await handleAction(message.payload as CotsAction)
+      const result = await handleAction(message.payload as CotsAction, sender.tab?.id)
       return { ok: true, payload: result ?? undefined }
     } catch (error: any) {
       return { ok: false, error: error.message }
